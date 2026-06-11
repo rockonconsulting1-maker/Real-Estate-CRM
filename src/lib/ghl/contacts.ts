@@ -23,11 +23,14 @@ export function deriveContactRole(raw: any): ContactRole {
   return 'other';
 }
 
-export function mapContact(raw: any): Contact {
+export function mapContact(raw: any): Contact & { name: string } {
+  const firstName = raw.firstName || '';
+  const lastName = raw.lastName || '';
   return {
     id: raw.id,
-    firstName: raw.firstName || '',
-    lastName: raw.lastName || '',
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`.trim(),
     email: raw.email || '',
     phone: raw.phone || '',
     tags: raw.tags || [],
