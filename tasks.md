@@ -10,9 +10,9 @@
 - [x] T0.7 Add SQL comments documenting intentional deny-all RLS on ghl_tokens and drive_time_cache.
 
 ## Phase 1 — ghl-proxy Hardening
-- [ ] T1.1 Inject/overwrite locationId server-side into proxied GHL request bodies and query params; strip client-supplied locationId.
-- [ ] T1.2 Fix location-link resolution: filter is_primary = true AND revoked_at IS NULL.
-- [ ] T1.3 Write audit_log entries on ALL outcomes (success, GHL errors, refresh failures) with real status codes.
+- [x] T1.1 Inject/overwrite locationId server-side into proxied GHL request bodies and query params; strip client-supplied locationId.
+- [x] T1.2 Fix location-link resolution: filter is_primary = true AND revoked_at IS NULL.
+- [x] T1.3 Write audit_log entries on ALL outcomes (success, GHL errors, refresh failures) with real status codes.
 - [ ] T1.4 Redeploy ghl-proxy; smoke-test contacts search, offer search, token-refresh path.
 
 ## Phase 2 — Frontend Data Layer Fixes
