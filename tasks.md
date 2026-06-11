@@ -16,13 +16,13 @@
 - [ ] T1.4 Redeploy ghl-proxy; smoke-test contacts search, offer search, token-refresh path.
 
 ## Phase 2 — Frontend Data Layer Fixes
-- [ ] T2.1 Remove locationId: "placeholder" from useContacts; rely on proxy injection.
-- [ ] T2.2 Fix ghlProxy.ts error handling to parse FunctionsHttpError via error.context.json() and map statusCode → ProxyErrorKind.
-- [ ] T2.3 Add page/pageLimit/searchAfter to all custom-object searches (useOffers, useProperties).
-- [ ] T2.4 Fix useClients contact-lookup filter shape per Contacts Search API doc.
-- [ ] T2.5 Implement real association resolution (relations nested filter) replacing mocked resolution in useTasksFor/useNotesFor; shared resolveLinkedContact() helper in src/lib/ghl/associations.ts.
-- [ ] T2.6 Fix query-key invalidations to use prefix matching (calendar, offers, others as found).
-- [ ] T2.7 Add pagination (infinite query or pager) to Leads, Contacts, Clients, Properties, Offers lists.
+- [x] T2.1 Remove locationId: "placeholder" from useContacts; rely on proxy injection.
+- [x] T2.2 Fix ghlProxy.ts error handling to parse FunctionsHttpError via error.context.json() and map statusCode → ProxyErrorKind.
+- [x] T2.3 Add page/pageLimit/searchAfter to all custom-object searches (useOffers, useProperties).
+- [x] T2.4 Fix useClients contact-lookup filter shape per Contacts Search API doc.
+- [x] T2.5 Implement real association resolution (relations nested filter) replacing mocked resolution in useTasksFor/useNotesFor; shared resolveLinkedContact() helper in src/lib/ghl/associations.ts.
+- [x] T2.6 Fix query-key invalidations to use prefix matching (calendar, offers, others as found).
+- [x] T2.7 Add pagination (infinite query or pager) to Leads, Contacts, Clients, Properties, Offers lists.
 
 ## Phase 3 — Pipeline Config & PRD Reconciliation
 - [ ] T3.1 Create PipelineConfigProvider: fetch GET /opportunities/pipelines via proxy, resolve pipeline + stage IDs by name, cache.
