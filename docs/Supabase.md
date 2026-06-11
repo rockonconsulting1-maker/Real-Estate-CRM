@@ -164,10 +164,10 @@ Unique on `(app_user_id, ghl_location_id)`.
 
 | RPC | Purpose | Caller |
 |---|---|---|
-| `get_decrypted_ghl_token(p_location_id)` | Returns decrypted `{ access_token, refresh_token }` | Edge functions (service role) |
-| `current_app_user()` | The `app_users` row for the current JWT | Edge functions / frontend |
-| `current_primary_location()` | Primary GHL location ID for the current user | Edge functions / frontend |
-| `lookup_invite(p_token)` | Invite row for a token | `accept-invite` |
+| `get_decrypted_ghl_token(p_location_id)` | Returns decrypted `{ access_token, refresh_token }` (EXECUTE: service_role only) | Edge functions (service role) |
+| `current_app_user()` | The `app_users` row for the current JWT (EXECUTE: authenticated, service_role) | Edge functions / frontend |
+| `current_primary_location()` | Primary GHL location ID for the current user (EXECUTE: authenticated, service_role) | Edge functions / frontend |
+| `lookup_invite(p_token)` | Non-sensitive invite info for a token: `{ id, email, role, status }` (EXECUTE: anon, authenticated, service_role). `accept-invite` reads `invites` directly via service role instead | Invite-accept flow (pre-login) |
 | `search_notes_index(search_query, max_results)` | Ranked full-text note search | `search-notes`, `global-search` |
 
 ### 4.4 RLS — what the frontend can see

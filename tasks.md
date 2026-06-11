@@ -1,13 +1,13 @@
 # RC CRM — Task List
 
 ## Phase 0 — Security Lockdown (do first)
-- [ ] T0.1 Revoke EXECUTE on get_decrypted_ghl_token from anon/authenticated/public; grant service_role only. Repeat review for encrypt_ghl_tokens, handle_new_auth_user, rls_auto_enable, current_app_user, current_primary_location, lookup_invite.
-- [ ] T0.2 Set search_path = '' on all six flagged functions; schema-qualify internals.
+- [x] T0.1 Revoke EXECUTE on get_decrypted_ghl_token from anon/authenticated/public; grant service_role only. Repeat review for encrypt_ghl_tokens, handle_new_auth_user, rls_auto_enable, current_app_user, current_primary_location, lookup_invite.
+- [x] T0.2 Set search_path = '' on all six flagged functions; schema-qualify internals.
 - [ ] T0.3 Enable leaked-password protection in Supabase Auth settings.
 - [ ] T0.4 Delete ghl-proxy-final and update-assistant-template-final Edge Functions.
 - [ ] T0.5 Restrict Edge Function CORS to APP_BASE_URL.
-- [ ] T0.6 Move pgtap out of public schema (or drop it).
-- [ ] T0.7 Add SQL comments documenting intentional deny-all RLS on ghl_tokens and drive_time_cache.
+- [x] T0.6 Move pgtap out of public schema (or drop it).
+- [x] T0.7 Add SQL comments documenting intentional deny-all RLS on ghl_tokens and drive_time_cache.
 
 ## Phase 1 — ghl-proxy Hardening
 - [ ] T1.1 Inject/overwrite locationId server-side into proxied GHL request bodies and query params; strip client-supplied locationId.
