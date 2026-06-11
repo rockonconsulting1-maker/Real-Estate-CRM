@@ -5,6 +5,7 @@ import { mapContact } from "@/lib/ghl/contacts";
 import { mapOpportunity } from "@/lib/ghl/opportunities";
 import { Contact, Opportunity } from "@/types";
 import { toast } from "sonner";
+import { usePipelines } from "@/providers/PipelineConfigProvider";
 
 export interface LeadFilters {
   status?: 'Hot' | 'Warm' | 'Cold';
@@ -20,9 +21,13 @@ export interface Lead extends Contact {
 const LEADS_PAGE_LIMIT = 20;
 
 export function useLeads(filters: LeadFilters = {}) {
+  const { leadPipeline, isResolved } = usePipelines();
+
   return useInfiniteQuery({
     queryKey: qk.leads.list(filters),
     queryFn: async ({ pageParam }) => {
+      if (!leadPipeline) throw new Error("Lead pipeline not resolved");
+
       // 1. Search contacts with lead tags (paged; locationId injected server-side)
       const contactsResponse = await ghlProxy<{ contacts: any[] }>({
         method: 'POST',
@@ -33,19 +38,17 @@ export function useLeads(filters: LeadFilters = {}) {
           filters: [
             { field: 'tags', operator: 'contains', value: 'lead' }
           ],
-          // Add more filters based on filters prop
         }
       });
 
       const contacts = (contactsResponse.contacts || []).map(mapContact);
 
       // 2. Fetch opportunities for these contacts in the Lead Nurture pipeline
-      // Pipeline ID from API.md §7: dcKjydejKreefHfsXQx6
       const oppsResponse = await ghlProxy<{ opportunities: any[] }>({
         method: 'POST',
         path: '/opportunities/search',
         body: {
-          pipelineId: 'dcKjydejKreefHfsXQx6'
+          pipelineId: leadPipeline.id
         }
       });
 
@@ -61,13 +64,18 @@ export function useLeads(filters: LeadFilters = {}) {
     getNextPageParam: (lastPage, _all, lastPageParam) =>
       lastPage.length === LEADS_PAGE_LIMIT ? lastPageParam + 1 : undefined,
     select: (data) => data.pages.flat(),
+    enabled: isResolved
   });
 }
 
 export function useLead(id: string) {
+  const { leadPipeline, isResolved } = usePipelines();
+
   return useQuery({
     queryKey: qk.leads.detail(id),
     queryFn: async () => {
+      if (!leadPipeline) throw new Error("Lead pipeline not resolved");
+
       const contactRaw = await ghlProxy<any>({
         method: 'GET',
         path: `/contacts/${id}`
@@ -81,7 +89,7 @@ export function useLead(id: string) {
         path: '/opportunities/search',
         body: {
           contactId: id,
-          pipelineId: 'dcKjydejKreefHfsXQx6'
+          pipelineId: leadPipeline.id
         }
       });
 
@@ -91,14 +99,18 @@ export function useLead(id: string) {
 
       return { ...contact, opportunity } as Lead;
     },
-    enabled: !!id
+    enabled: isResolved && !!id
   });
 }
 
 export function useCreateLead() {
   const queryClient = useQueryClient();
+  const { leadPipeline } = usePipelines();
+
   return useMutation({
   mutationFn: async (data: Partial<Lead>) => {
+      if (!leadPipeline) throw new Error("Lead pipeline not resolved");
+
       // 1. Create contact
       const contactRes = await ghlProxy<{ contact: any }>({
         method: 'POST',
@@ -116,8 +128,8 @@ export function useCreateLead() {
         method: 'POST',
         path: '/opportunities/',
         body: {
-          pipelineId: 'dcKjydejKreefHfsXQx6',
-          pipelineStageId: 'initial_stage_id', // Should come from pipeline config
+          pipelineId: leadPipeline.id,
+          pipelineStageId: leadPipeline.stages[0]?.id, // Use the first stage as initial
           name: `${data.firstName} ${data.lastName} - Lead`,
           contactId
         }
@@ -160,11 +172,9 @@ export function useUpdateOpportunityStage() {
         body: { pipelineStageId: stageId }
       });
     },
-    onMutate: async ({ id, stageId }) => {
-      // Optimistic update logic would go here
-    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.leads.lists });
+      queryClient.invalidateQueries({ queryKey: qk.clients.lists });
       queryClient.invalidateQueries({ queryKey: qk.dashboard.summary });
     }
   });

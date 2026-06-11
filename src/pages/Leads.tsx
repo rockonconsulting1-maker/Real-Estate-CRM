@@ -14,6 +14,8 @@ import { AddLeadDrawer } from "@/components/shared/forms/AddLeadDrawer";
 import { SkeletonLoader } from "@/components/shared/SkeletonLoader";
 import { Button } from "@/components/ui/button";
 import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
+import { usePipelines } from "@/providers/PipelineConfigProvider";
+import { PipelineFallbackBanner } from "@/components/shared/PipelineFallbackBanner";
 
 const ROLE_FILTERS = [
   { id: "Hot", label: "Hot" },
@@ -32,13 +34,16 @@ export default function Leads() {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
 
+  const { leadPipeline, isResolved, isLoading: isPipelinesLoading } = usePipelines();
   const {
     data: leads,
-    isLoading,
+    isLoading: isLeadsLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
   } = useLeads(filters);
+
+  const isLoading = isPipelinesLoading || isLeadsLoading;
 
   const handleFilterChange = (selectedIds: string[]) => {
     setSelectedFilters(selectedIds);
@@ -66,6 +71,10 @@ export default function Leads() {
           </div>
         }
       />
+
+      {!isLoading && !leadPipeline && (
+        <PipelineFallbackBanner pipelineName="Lead Nurture" />
+      )}
 
       <div className="px-4 md:px-0">
         <FilterChipRow 
