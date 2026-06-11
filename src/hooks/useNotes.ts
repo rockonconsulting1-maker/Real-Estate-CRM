@@ -5,25 +5,39 @@ import { toast } from "@/hooks/use-toast";
 import { Note } from "@/types";
 import { mapNote } from "@/lib/ghl/notes";
 import { searchNotes } from "@/lib/edgeFunctions";
+import { resolveLinkedContact } from "@/lib/ghl/associations";
+
+export interface NotesForResult {
+  notes: Note[];
+  /** True when the entity has no linked contact — show a "No linked contact" empty state. */
+  isUnlinked: boolean;
+  contactId: string | null;
+}
 
 export function useNotesFor(entityType: "contact" | "opportunity" | "property" | "offer", entityId: string) {
-  return useQuery({
+  return useQuery<NotesForResult>({
     queryKey: ["notes", entityType, entityId],
     queryFn: async () => {
-      let contactId = entityId;
-      
       // If not a contact, resolve the contact ID first via associations
-      if (entityType !== "contact") {
-        // Mock resolution for now
-        // contactId = await resolveLinkedContact(entityId);
+      const contactId =
+        entityType === "contact"
+          ? entityId
+          : await resolveLinkedContact(entityType, entityId);
+
+      if (!contactId) {
+        return { notes: [], isUnlinked: true, contactId: null };
       }
-      
+
       const response = await ghlProxy<{ notes: any[] }>({
         method: "GET",
         path: `/contacts/${contactId}/notes`,
       });
-      
-      return (response.notes || []).map((n: any) => mapNote({ ...n, contactId }));
+
+      return {
+        notes: (response.notes || []).map((n: any) => mapNote({ ...n, contactId })),
+        isUnlinked: false,
+        contactId,
+      };
     },
     enabled: !!entityId,
   });

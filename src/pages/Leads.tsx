@@ -13,6 +13,7 @@ import { ContextFAB } from "@/components/layout/ContextFAB";
 import { AddLeadDrawer } from "@/components/shared/forms/AddLeadDrawer";
 import { SkeletonLoader } from "@/components/shared/SkeletonLoader";
 import { Button } from "@/components/ui/button";
+import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
 
 const ROLE_FILTERS = [
   { id: "Hot", label: "Hot" },
@@ -31,7 +32,13 @@ export default function Leads() {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
 
-  const { data: leads, isLoading } = useLeads(filters);
+  const {
+    data: leads,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useLeads(filters);
 
   const handleFilterChange = (selectedIds: string[]) => {
     setSelectedFilters(selectedIds);
@@ -85,10 +92,17 @@ export default function Leads() {
           </div>
         ) : leads && leads.length > 0 ? (
           view === "list" ? (
-            <RecordList 
-              items={leads}
-              renderItem={(lead) => <LeadCard lead={lead} />}
-            />
+            <>
+              <RecordList
+                items={leads}
+                renderItem={(lead) => <LeadCard lead={lead} />}
+              />
+              <LoadMoreButton
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              />
+            </>
           ) : (
             <LeadKanban leads={leads} />
           )

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ghlProxy } from "@/lib/ghlProxy";
 import { qk } from "@/lib/queryKeys";
 import { mapContact } from "@/lib/ghl/contacts";
@@ -9,14 +9,17 @@ export interface ContactFilters {
   role?: string;
 }
 
+export const CONTACTS_PAGE_LIMIT = 20;
+
 export function useContacts(filters: ContactFilters = {}) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: qk.contacts.list(filters),
-    queryFn: async () => {
-      // Note: role filter might need to be translated to GHL tags/fields
-      const body: any = { locationId: "placeholder", pageLimit: 50 };
+    queryFn: async ({ pageParam }) => {
+      // Note: role filter might need to be translated to GHL tags/fields.
+      // locationId is injected server-side by ghl-proxy — never send it.
+      const body: any = { page: pageParam, pageLimit: CONTACTS_PAGE_LIMIT };
       if (filters.query) body.query = filters.query;
-      
+
       const res = await ghlProxy<{ contacts: any[] }>({
         method: "POST",
         path: "/contacts/search",
@@ -24,6 +27,10 @@ export function useContacts(filters: ContactFilters = {}) {
       });
       return (res.contacts || []).map(mapContact);
     },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, _all, lastPageParam) =>
+      lastPage.length === CONTACTS_PAGE_LIMIT ? lastPageParam + 1 : undefined,
+    select: (data) => data.pages.flat(),
   });
 }
 
@@ -71,7 +78,7 @@ export function useUpdateContact() {
     },
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: qk.contacts.detail(updated.id) });
-      qc.invalidateQueries({ queryKey: qk.contacts.list({} as any) });
+      qc.invalidateQueries({ queryKey: qk.contacts.lists });
     },
   });
 }

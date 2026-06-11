@@ -25,7 +25,7 @@ export default function Notes() {
   const searchNotesQuery = useSearchNotes(debouncedSearch);
   
   const isLoading = isSearching ? searchNotesQuery.isLoading : allNotesQuery.isLoading;
-  let notes = isSearching ? searchNotesQuery.data : allNotesQuery.data;
+  const notes = isSearching ? searchNotesQuery.data : allNotesQuery.data;
   
   // Apply color filter (mocked since GHL notes might not have color, but we filter if they did)
   if (colorFilter && notes) {

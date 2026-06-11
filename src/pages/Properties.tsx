@@ -11,11 +11,18 @@ import { RecordList } from "@/components/shared/RecordList";
 import { AddPropertyModal } from "@/components/properties/AddPropertyModal";
 import { FilterChipRow } from "@/components/shared/FilterChipRow";
 import { useNavigate } from "react-router-dom";
+import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
 
 export default function Properties() {
   const [view, setView] = useState<"list" | "kanban" | "map">("kanban");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { data: properties = [], isLoading } = useProperties();
+  const {
+    data: properties = [],
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useProperties();
   const navigate = useNavigate();
 
   return (
@@ -67,17 +74,24 @@ export default function Properties() {
             <PropertyMapView properties={properties} />
           )}
           {view === "list" && (
-            <RecordList 
-              items={properties}
-              renderItem={(p) => (
-                <PropertyCard 
-                  property={p} 
-                  onClick={() => navigate(`/properties/${p.id}`)}
-                />
-              )}
-              isLoading={isLoading}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-            />
+            <>
+              <RecordList
+                items={properties}
+                renderItem={(p) => (
+                  <PropertyCard
+                    property={p}
+                    onClick={() => navigate(`/properties/${p.id}`)}
+                  />
+                )}
+                isLoading={isLoading}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              />
+              <LoadMoreButton
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              />
+            </>
           )}
         </div>
       </div>

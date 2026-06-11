@@ -4,6 +4,7 @@ import { ghlProxy } from "@/lib/ghlProxy";
 import { toast } from "@/hooks/use-toast";
 import { Task } from "@/types";
 import { mapTask } from "@/lib/ghl/tasks";
+import { resolveLinkedContact } from "@/lib/ghl/associations";
 
 // This is a simplified version for the prototype. In a real app,
 // you'd need a more robust way to fetch all tasks across contacts.
@@ -44,24 +45,37 @@ export function useAllTasks() {
   });
 }
 
+export interface TasksForResult {
+  tasks: Task[];
+  /** True when the entity has no linked contact — show a "No linked contact" empty state. */
+  isUnlinked: boolean;
+  contactId: string | null;
+}
+
 export function useTasksFor(entityType: "contact" | "opportunity" | "property" | "offer", entityId: string) {
-  return useQuery({
+  return useQuery<TasksForResult>({
     queryKey: ["tasks", entityType, entityId],
     queryFn: async () => {
-      let contactId = entityId;
-      
       // If not a contact, resolve the contact ID first via associations
-      if (entityType !== "contact") {
-        // Mock resolution for now
-        // contactId = await resolveLinkedContact(entityId);
+      const contactId =
+        entityType === "contact"
+          ? entityId
+          : await resolveLinkedContact(entityType, entityId);
+
+      if (!contactId) {
+        return { tasks: [], isUnlinked: true, contactId: null };
       }
-      
+
       const response = await ghlProxy<{ tasks: any[] }>({
         method: "GET",
         path: `/contacts/${contactId}/tasks`,
       });
-      
-      return (response.tasks || []).map((t: any) => mapTask({ ...t, contactId }));
+
+      return {
+        tasks: (response.tasks || []).map((t: any) => mapTask({ ...t, contactId })),
+        isUnlinked: false,
+        contactId,
+      };
     },
     enabled: !!entityId,
   });
