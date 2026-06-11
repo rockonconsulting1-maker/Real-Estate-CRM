@@ -47,22 +47,13 @@ export function useNote(contactId: string, noteId: string) {
   return useQuery({
     queryKey: qk.notes.detail(noteId),
     queryFn: async () => {
-      try {
-        const response = await ghlProxy<any>({
-          method: "GET",
-          path: `/contacts/${contactId}/notes/${noteId}`,
-        });
-        return mapNote({ ...response, contactId });
-      } catch (e: any) {
-        // Fallback: fetch all and find
-        const response = await ghlProxy<{ notes: any[] }>({
-          method: "GET",
-          path: `/contacts/${contactId}/notes`,
-        });
-        const note = response.notes?.find((n: any) => n.id === noteId);
-        if (!note) throw new Error("Note not found");
-        return mapNote({ ...note, contactId });
-      }
+      const response = await ghlProxy<{ notes: any[] }>({
+        method: "GET",
+        path: `/contacts/${contactId}/notes`,
+      });
+      const note = response.notes?.find((n: any) => n.id === noteId);
+      if (!note) throw new Error("Note not found");
+      return mapNote({ ...note, contactId });
     },
     enabled: !!contactId && !!noteId,
   });
