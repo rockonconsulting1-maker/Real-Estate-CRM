@@ -47,9 +47,6 @@ export function useNote(contactId: string, noteId: string) {
   return useQuery({
     queryKey: qk.notes.detail(noteId),
     queryFn: async () => {
-      // GHL doesn't have a GET /contacts/{id}/notes/{noteId} that we know of, 
-      // but if it does, we can use it. Alternatively, fetch all and filter.
-      // Assuming it does:
       try {
         const response = await ghlProxy<any>({
           method: "GET",
@@ -84,6 +81,7 @@ export function useCreateNote() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: qk.notes.forContact(variables.contactId) });
+      queryClient.invalidateQueries({ queryKey: ["notes", "all"] });
       toast({ title: "Note Created", description: "The note has been created successfully." });
     },
   });
@@ -103,6 +101,7 @@ export function useUpdateNote() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: qk.notes.forContact(variables.contactId) });
       queryClient.invalidateQueries({ queryKey: qk.notes.detail(variables.noteId) });
+      queryClient.invalidateQueries({ queryKey: ["notes", "all"] });
       toast({ title: "Note Updated", description: "The note has been updated successfully." });
     },
   });
@@ -121,6 +120,7 @@ export function useDeleteNote() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: qk.notes.forContact(variables.contactId) });
       queryClient.removeQueries({ queryKey: qk.notes.detail(variables.noteId) });
+      queryClient.invalidateQueries({ queryKey: ["notes", "all"] });
       toast({ title: "Note Deleted", description: "The note has been deleted." });
     },
   });
@@ -132,46 +132,31 @@ export function useSearchNotes(query: string) {
     queryFn: async () => {
       if (!query) return [];
       const data = await searchNotes(query, 50);
-      return data || [];
+      return (data || []).map((n: any) => mapNote({
+        id: n.ghl_note_id,
+        body: n.body,
+        dateAdded: n.created_at,
+        updatedAt: n.updated_at,
+        contactId: n.ghl_contact_id
+      }));
     },
-    enabled: true, // we might want to enable this always or based on query
+    enabled: !!query,
   });
 }
 
-// Mock function for all notes for the notes page if no search is active
 export function useAllNotes() {
   return useQuery({
     queryKey: ["notes", "all"],
     queryFn: async () => {
-      // In a real app, this would use a global notes endpoint or search-notes with empty query
-      // For the prototype, let's fetch a few contacts and get their notes
-      const contactsRes = await ghlProxy<{ contacts: any[] }>({
-        method: "POST",
-        path: "/contacts/search",
-        body: { pageLimit: 20 },
-      });
-      
-      const contacts = contactsRes.contacts || [];
-      const allNotes: Note[] = [];
-      
-      await Promise.all(
-        contacts.map(async (c) => {
-          try {
-            const notesRes = await ghlProxy<{ notes: any[] }>({
-              method: "GET",
-              path: `/contacts/${c.id}/notes`,
-            });
-            if (notesRes.notes) {
-              const mapped = notesRes.notes.map((n: any) => mapNote({ ...n, contactId: c.id }));
-              allNotes.push(...mapped);
-            }
-          } catch (e) {
-            // Ignore
-          }
-        })
-      );
-      
-      return allNotes.sort((a, b) => new Date(b.dateAdded || 0).getTime() - new Date(a.dateAdded || 0).getTime());
+      // Call search-notes with empty query + pagination (limit 50)
+      const data = await searchNotes("", 50);
+      return (data || []).map((n: any) => mapNote({
+        id: n.ghl_note_id,
+        body: n.body,
+        dateAdded: n.created_at,
+        updatedAt: n.updated_at,
+        contactId: n.ghl_contact_id
+      }));
     },
   });
 }

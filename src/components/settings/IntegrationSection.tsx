@@ -2,11 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/AuthProvider";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Link as LinkIcon } from "lucide-react";
+import { CheckCircle2, Link as LinkIcon, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useSyncTasks } from "@/hooks/useTasks";
 
 export function IntegrationSection() {
   const { ghlLocationId } = useAuth();
+  const syncTasks = useSyncTasks();
   
   return (
     <Card>
@@ -39,6 +41,25 @@ export function IntegrationSection() {
             )}
             <Button variant="outline" asChild>
               <Link to="/connect-ghl">Reconnect</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-4 border rounded-lg space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">Sync Data</div>
+              <div className="text-sm text-muted-foreground">
+                Import your tasks from GoHighLevel into the local cache.
+              </div>
+            </div>
+            <Button
+              onClick={() => syncTasks.mutate()}
+              disabled={syncTasks.isPending || !ghlLocationId}
+              variant="secondary"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncTasks.isPending ? 'animate-spin' : ''}`} />
+              {syncTasks.isPending ? 'Syncing...' : 'Sync tasks'}
             </Button>
           </div>
         </div>

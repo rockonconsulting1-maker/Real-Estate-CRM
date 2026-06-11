@@ -5,42 +5,46 @@ import { toast } from "@/hooks/use-toast";
 import { Task } from "@/types";
 import { mapTask } from "@/lib/ghl/tasks";
 import { resolveLinkedContact } from "@/lib/ghl/associations";
+import { supabase } from "@/lib/supabase";
+import { startOfDay, endOfDay } from "date-fns";
 
-// This is a simplified version for the prototype. In a real app,
-// you'd need a more robust way to fetch all tasks across contacts.
-export function useAllTasks() {
+export type TaskFilter = "all" | "today" | "overdue" | "upcoming" | "completed";
+
+export function useAllTasks(filter: TaskFilter = "all") {
   return useQuery({
-    queryKey: qk.tasks.all,
+    queryKey: [...qk.tasks.all, filter],
     queryFn: async () => {
-      // Fetch a small set of contacts first to get their tasks
-      const contactsRes = await ghlProxy<{ contacts: any[] }>({
-        method: "POST",
-        path: "/contacts/search",
-        body: { pageLimit: 20 },
-      });
+      let query = supabase.from('task_index').select('*');
       
-      const contacts = contactsRes.contacts || [];
-      const allTasks: Task[] = [];
+      const todayStart = startOfDay(new Date()).toISOString();
+      const todayEnd = endOfDay(new Date()).toISOString();
+
+      if (filter === "completed") {
+        query = query.eq('completed', true);
+      } else {
+        query = query.eq('completed', false);
+        if (filter === "today") {
+          query = query.lte('due_date', todayEnd);
+        } else if (filter === "overdue") {
+          query = query.lt('due_date', todayStart);
+        } else if (filter === "upcoming") {
+          query = query.or(`due_date.gt.${todayEnd},due_date.is.null`);
+        }
+      }
+
+      const { data, error } = await query.order('due_date', { ascending: true, nullsFirst: false });
       
-      // Fetch tasks for each contact
-      await Promise.all(
-        contacts.map(async (c) => {
-          try {
-            const tasksRes = await ghlProxy<{ tasks: any[] }>({
-              method: "GET",
-              path: `/contacts/${c.id}/tasks`,
-            });
-            if (tasksRes.tasks) {
-              const mapped = tasksRes.tasks.map((t: any) => mapTask({ ...t, contactId: c.id }));
-              allTasks.push(...mapped);
-            }
-          } catch (e) {
-            // Ignore errors for individual contacts
-          }
-        })
-      );
+      if (error) throw error;
       
-      return allTasks;
+      return (data || []).map(t => mapTask({
+        id: t.id,
+        title: t.title,
+        body: t.body,
+        dueDate: t.due_date,
+        status: t.completed ? "completed" : "pending",
+        assignedTo: t.assigned_to,
+        contactId: t.contact_id
+      }));
     },
   });
 }
@@ -56,7 +60,6 @@ export function useTasksFor(entityType: "contact" | "opportunity" | "property" |
   return useQuery<TasksForResult>({
     queryKey: ["tasks", entityType, entityId],
     queryFn: async () => {
-      // If not a contact, resolve the contact ID first via associations
       const contactId =
         entityType === "contact"
           ? entityId
@@ -81,6 +84,23 @@ export function useTasksFor(entityType: "contact" | "opportunity" | "property" |
   });
 }
 
+async function writeThroughTask(task: any, locationId: string, contactId: string) {
+  const { error } = await supabase
+    .from('task_index')
+    .upsert({
+      id: task.id,
+      ghl_location_id: locationId,
+      contact_id: contactId,
+      title: task.title,
+      body: task.body,
+      due_date: task.dueDate,
+      completed: task.status === 'completed',
+      assigned_to: task.assignedTo,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  if (error) console.error('Write-through failed:', error);
+}
+
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -90,6 +110,18 @@ export function useCreateTask() {
         path: `/contacts/${contactId}/tasks`,
         body: data,
       });
+
+      if (response && response.id) {
+        const { data: link } = await supabase
+          .from('user_location_links')
+          .select('ghl_location_id')
+          .eq('is_primary', true)
+          .maybeSingle();
+
+        if (link?.ghl_location_id) {
+          await writeThroughTask({ ...data, id: response.id }, link.ghl_location_id, contactId);
+        }
+      }
       return response;
     },
     onSuccess: (_, variables) => {
@@ -109,6 +141,16 @@ export function useUpdateTask() {
         path: `/contacts/${contactId}/tasks/${taskId}`,
         body: data,
       });
+
+      const { data: link } = await supabase
+          .from('user_location_links')
+          .select('ghl_location_id')
+          .eq('is_primary', true)
+          .maybeSingle();
+      if (link?.ghl_location_id) {
+        await writeThroughTask({ ...data, id: taskId }, link.ghl_location_id, contactId);
+      }
+
       return response;
     },
     onSuccess: (_, variables) => {
@@ -128,10 +170,19 @@ export function useCompleteTask() {
         path: `/contacts/${contactId}/tasks/${taskId}`,
         body: { status: completed ? "completed" : "pending" },
       });
+
+      const { data: link } = await supabase
+          .from('user_location_links')
+          .select('ghl_location_id')
+          .eq('is_primary', true)
+          .maybeSingle();
+      if (link?.ghl_location_id) {
+        await supabase.from('task_index').update({ completed }).eq('id', taskId);
+      }
+
       return response;
     },
     onMutate: async ({ contactId, taskId, completed }) => {
-      // Optimistic update
       await queryClient.cancelQueries({ queryKey: qk.tasks.all });
       const previousTasks = queryClient.getQueryData<Task[]>(qk.tasks.all);
       
@@ -152,6 +203,29 @@ export function useCompleteTask() {
     onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({ queryKey: qk.tasks.all });
       queryClient.invalidateQueries({ queryKey: qk.tasks.forContact(variables.contactId) });
+    },
+  });
+}
+
+export function useSyncTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      let cursor = null;
+      let totalProcessed = 0;
+      do {
+        const { data, error } = await supabase.functions.invoke('backfill-tasks', {
+          body: { cursor }
+        });
+        if (error) throw error;
+        cursor = data.nextCursor;
+        totalProcessed += 20;
+        console.log(`Processed ~ ${totalProcessed} contacts`);
+      } while (cursor);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.tasks.all });
+      toast({ title: "Sync Complete", description: "Your tasks have been synchronized." });
     },
   });
 }
