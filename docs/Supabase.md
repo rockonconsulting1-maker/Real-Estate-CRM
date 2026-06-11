@@ -188,7 +188,9 @@ Edge functions use the service role key and bypass RLS deliberately.
 
 ## 5. Edge functions
 
-16 functions, all Deno, all with `verify_jwt: false` (JWT is validated **inside** each function). The frontend calls them with `supabase.functions.invoke(name, { body })`, which attaches the session JWT automatically.
+16 functions, all Deno. Most run with `verify_jwt: false` (the JWT is validated **inside** each function); the exception is `backfill-tasks`, which uses platform-level `verify_jwt: true`. The frontend calls them with `supabase.functions.invoke(name, { body })`, which attaches the session JWT automatically.
+
+> The duplicate `ghl-proxy-final` and `update-assistant-template-final` deployments have been removed — they were unreferenced stable-tagged copies and extra attack surface. The canonical set is the 16 functions listed below.
 
 ### 5.1 The one that matters most — `ghl-proxy`
 
@@ -198,7 +200,6 @@ The central API gateway. **Every GHL call goes through it.** See `API.md` for th
 - **Body:** `{ method, path, body? }` — where `method`/`path` describe the GHL request.
 - **Flow:** verify JWT -> load `app_users` -> resolve location from `user_location_links` -> if assistant, evaluate `permission_template` against `assistant_permission_templates` (deny -> `403` + audit) -> decrypt GHL token -> call GHL (`fetchGhl`), retry once on `401` after `ghl-token-refresh` -> write `audit_log` -> return GHL response verbatim.
 - **Errors:** `401` invalid JWT · `403` no location / revoked / permission denied · `5xx` GHL or internal failure.
-- `ghl-proxy-final` is a stable-tagged deployment of the same function.
 
 ### 5.2 Full function index
 
@@ -218,8 +219,8 @@ The central API gateway. **Every GHL call goes through it.** See `API.md` for th
 | `delete-saved-view` | Any user | Delete a saved view | Saved view management |
 | `ghl-webhook-notes` | None (GHL webhook) | Maintain `note_index` | Not called by the frontend |
 | `search-notes` | Any user | Full-text note search | Notes page search |
-| `ghl-proxy-final` | Any user | Stable `ghl-proxy` deployment | Alternate proxy target |
-| `update-assistant-template-final` | Agent only | Stable `update-assistant-template` | Alternate target |
+| `ghl-webhook-tasks` | None (GHL webhook) | Maintain `task_index` | Not called by the frontend |
+| `backfill-tasks` | Authenticated | Page through contacts to populate `task_index` | Settings -> "Sync Tasks" (`useSyncTasks`) |
 
 ### 5.3 Function request shapes the frontend needs
 
