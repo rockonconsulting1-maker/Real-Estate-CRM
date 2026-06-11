@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ContextFAB } from "@/components/layout/ContextFAB";
 import { Plus, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useAllTasks } from "@/hooks/useTasks";
+import { useAllTasks, TaskFilter as FilterType } from "@/hooks/useTasks";
 import { TaskRow } from "@/components/tasks/TaskRow";
 import { TaskFilterTabs, TaskFilter, TaskGroupHeader } from "@/components/tasks/TaskFilterTabs";
 import { AddTaskDrawer } from "@/components/tasks/AddTaskDrawer";
@@ -12,57 +12,38 @@ import { TaskInlineEditor } from "@/components/tasks/TaskInlineEditor";
 import { TaskSchedulerMiniCalendar } from "@/components/tasks/TaskSchedulerMiniCalendar";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonLoader } from "@/components/shared/SkeletonLoader";
-import { isToday, isPast, isFuture } from "date-fns";
 import { Task } from "@/types";
 
 export default function Tasks() {
   const isMobile = useIsMobile();
-  const { data: tasks, isLoading } = useAllTasks();
-  
   const [filter, setFilter] = useState<TaskFilter>(isMobile ? "today" : "all");
+  const { data: tasks, isLoading } = useAllTasks(filter as FilterType);
+
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const filteredTasks = useMemo(() => {
-    if (!tasks) return [];
-    
-    return tasks.filter(task => {
-      const isCompleted = task.status === "completed";
-      const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-      
-      if (filter === "completed") return isCompleted;
-      if (isCompleted) return false; // Hide completed from other views unless specifically requested
-      
-      if (filter === "all") return true;
-      
-      if (filter === "today") {
-        return dueDate && (isToday(dueDate) || isPast(dueDate)); // Include overdue in today for mobile default
-      }
-      
-      if (filter === "overdue") {
-        return dueDate && isPast(dueDate) && !isToday(dueDate);
-      }
-      
-      if (filter === "upcoming") {
-        return !dueDate || (isFuture(dueDate) && !isToday(dueDate));
-      }
-      
-      return true;
-    });
-  }, [tasks, filter]);
+  // For counts, we still might want a separate query or just use the current data if it was "all"
+  // But let's keep it simple and just show the list for now, or fetch "all" once for counts.
+  // Actually, existing UI expects counts. We'll stick to client-side filtering for counts if we had all tasks,
+  // but the requirement said filter in SQL. So counts might be slightly off if we only fetch one slice.
+  // To keep UI consistent, we'll fetch 'all' and filter client-side for the counts, but the main list uses the filtered query.
+  // Wait, if I fetch 'all', I have everything.
+  // The requirement: "Rewrite useAllTasks to query task_index directly... with filters... computed in SQL".
 
-  // Calculate counts for tabs
+  const { data: allTasksForCounts } = useAllTasks("all");
+
   const counts = useMemo(() => {
-    if (!tasks) return undefined;
+    if (!allTasksForCounts) return undefined;
     
+    // This is slightly redundant but ensures counts are always accurate across tabs
     return {
-      all: tasks.filter(t => t.status !== "completed").length,
-      today: tasks.filter(t => t.status !== "completed" && t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))).length,
-      overdue: tasks.filter(t => t.status !== "completed" && t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))).length,
-      upcoming: tasks.filter(t => t.status !== "completed" && (!t.dueDate || (isFuture(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))))).length,
-      completed: tasks.filter(t => t.status === "completed").length,
+      all: allTasksForCounts.length,
+      today: allTasksForCounts.filter(t => t.status !== "completed" && t.dueDate && (new Date(t.dueDate) <= new Date())).length,
+      overdue: allTasksForCounts.filter(t => t.status !== "completed" && t.dueDate && (new Date(t.dueDate) < new Date())).length,
+      upcoming: allTasksForCounts.filter(t => t.status !== "completed" && (!t.dueDate || new Date(t.dueDate) > new Date())).length,
+      completed: allTasksForCounts.filter(t => t.status === "completed").length,
     };
-  }, [tasks]);
+  }, [allTasksForCounts]);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -82,7 +63,7 @@ export default function Tasks() {
                 <SkeletonLoader variant="list-row" />
                 <SkeletonLoader variant="list-row" />
               </div>
-            ) : filteredTasks.length === 0 ? (
+            ) : !tasks || tasks.length === 0 ? (
               <EmptyState 
                 title="No tasks found" 
                 description={`You don't have any ${filter} tasks.`} 
@@ -95,8 +76,8 @@ export default function Tasks() {
               />
             ) : (
               <div className="flex flex-col">
-                <TaskGroupHeader title={`${filter} Tasks`} count={filteredTasks.length} />
-                {filteredTasks.map(task => (
+                <TaskGroupHeader title={`${filter} Tasks`} count={tasks.length} />
+                {tasks.map(task => (
                   <TaskRow 
                     key={task.id} 
                     task={task} 
