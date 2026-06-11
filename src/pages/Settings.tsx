@@ -5,6 +5,7 @@ import { TeamSection } from "@/components/settings/TeamSection";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import { AboutSection } from "@/components/settings/AboutSection";
 import { PermissionGate } from "@/components/shared/PermissionGate";
+import { PipelineMappingSection } from "@/components/settings/PipelineMappingSection";
 
 export default function Settings() {
   return (
@@ -24,6 +25,10 @@ export default function Settings() {
           
           <PermissionGate action="view_settings">
             <IntegrationSection />
+          </PermissionGate>
+
+          <PermissionGate action="view_settings">
+            <PipelineMappingSection />
           </PermissionGate>
           
           <AboutSection />

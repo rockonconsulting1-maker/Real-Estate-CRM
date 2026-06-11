@@ -4,9 +4,10 @@ import { qk } from "@/lib/queryKeys";
 import { mapContact } from "@/lib/ghl/contacts";
 import { mapOpportunity } from "@/lib/ghl/opportunities";
 import { Contact, Opportunity } from "@/types";
+import { usePipelines } from "@/providers/PipelineConfigProvider";
 
 export interface ClientFilters {
-  pipelineId?: 'lsNchTsvghJQKPBYCS9Z' | 'F5uB4bZnB0M8YgJ86sLg'; // Buyer | Seller
+  pipelineId?: string; // Buyer | Seller
   search?: string;
   stageId?: string;
 }
@@ -17,12 +18,6 @@ export interface Client extends Contact {
 
 const CLIENTS_PAGE_LIMIT = 20;
 
-/**
- * The Contacts Search API filter operators (eq, not_eq, contains, not_contains,
- * exists, not_exists, range) do not include `in`, so a batch id lookup isn't
- * expressible as a single search. Fall back to parallel GET /contacts/{id},
- * tolerating individual failures.
- */
 async function fetchContactsByIds(contactIds: string[]): Promise<Contact[]> {
   const results = await Promise.allSettled(
     contactIds.map((id) =>
@@ -36,11 +31,15 @@ async function fetchContactsByIds(contactIds: string[]): Promise<Contact[]> {
 }
 
 export function useClients(filters: ClientFilters = {}) {
-  const pipelineId = filters.pipelineId || 'lsNchTsvghJQKPBYCS9Z'; // Default to Buyer
+  const { buyerPipeline, sellerPipeline, isResolved } = usePipelines();
+  const defaultPipelineId = buyerPipeline?.id;
+  const pipelineId = filters.pipelineId || defaultPipelineId;
 
   return useInfiniteQuery({
     queryKey: qk.clients.list(filters),
     queryFn: async ({ pageParam }) => {
+      if (!pipelineId) throw new Error("Pipeline ID not resolved");
+
       // 1. Fetch a page of opportunities for the selected pipeline
       const oppsResponse = await ghlProxy<{ opportunities: any[] }>({
         method: 'POST',
@@ -72,13 +71,18 @@ export function useClients(filters: ClientFilters = {}) {
     getNextPageParam: (lastPage, _all, lastPageParam) =>
       lastPage.length === CLIENTS_PAGE_LIMIT ? lastPageParam + 1 : undefined,
     select: (data) => data.pages.flat(),
+    enabled: isResolved && !!pipelineId
   });
 }
 
 export function useClient(id: string) {
+  const { buyerPipeline, sellerPipeline, isResolved } = usePipelines();
+
   return useQuery({
     queryKey: qk.clients.detail(id),
     queryFn: async () => {
+      if (!buyerPipeline || !sellerPipeline) throw new Error("Client pipelines not resolved");
+
       // id here is the contactId
       const contactRaw = await ghlProxy<any>({
         method: 'GET',
@@ -94,7 +98,7 @@ export function useClient(id: string) {
         body: {
           contactId: id,
           // We search across both client pipelines
-          pipelineIds: ['lsNchTsvghJQKPBYCS9Z', 'F5uB4bZnB0M8YgJ86sLg']
+          pipelineIds: [buyerPipeline.id, sellerPipeline.id]
         }
       });
 
@@ -102,6 +106,6 @@ export function useClient(id: string) {
 
       return { ...contact, opportunity: opportunities[0], opportunities } as Client & { opportunities: Opportunity[] };
     },
-    enabled: !!id
+    enabled: isResolved && !!id
   });
 }

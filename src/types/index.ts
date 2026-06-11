@@ -15,6 +15,7 @@ export interface AppUser {
   ghl_location_id?: string | null;
   theme_pref: ThemePref;
   density_pref: DensityPref;
+  pipeline_mapping?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
