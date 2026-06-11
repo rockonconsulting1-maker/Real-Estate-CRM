@@ -56,7 +56,7 @@ export function useCreateAppointment() {
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.calendar.events({}) });
+      queryClient.invalidateQueries({ queryKey: qk.calendar.all });
       toast({ title: "Appointment Created", description: "The appointment has been scheduled successfully." });
     },
   });
@@ -74,7 +74,7 @@ export function useUpdateAppointment() {
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.calendar.events({}) });
+      queryClient.invalidateQueries({ queryKey: qk.calendar.all });
       toast({ title: "Appointment Updated", description: "The appointment has been updated successfully." });
     },
   });

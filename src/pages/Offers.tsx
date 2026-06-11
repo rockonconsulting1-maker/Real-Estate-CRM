@@ -12,8 +12,7 @@ import { Plus, Table as TableIcon, LayoutGrid, ArrowLeftRight, X } from "lucide-
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContextFAB } from "@/components/layout/ContextFAB";
-import { useQueryClient } from "@tanstack/react-query";
-import { qk } from "@/lib/queryKeys";
+import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
 
 export default function Offers() {
   const isMobile = useIsMobile();
@@ -23,7 +22,13 @@ export default function Offers() {
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
 
-  const { data: offers = [], isLoading } = useOffers();
+  const {
+    data: offers = [],
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useOffers();
 
   // Grouping logic
   const groups = Array.from(new Set(offers.map(o => {
@@ -119,13 +124,19 @@ export default function Offers() {
           {view === "accordion" || isMobile ? (
             <OfferAccordionGroup groups={groups} isLoading={isLoading} />
           ) : (
-            <OfferTable 
-              offers={offers} 
-              selectedIds={selectedIds} 
-              onSelectChange={setSelectedIds} 
-              isLoading={isLoading} 
+            <OfferTable
+              offers={offers}
+              selectedIds={selectedIds}
+              onSelectChange={setSelectedIds}
+              isLoading={isLoading}
             />
           )}
+
+          <LoadMoreButton
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+          />
         </>
       )}
 

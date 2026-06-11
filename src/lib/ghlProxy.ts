@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export type GhlMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -17,22 +18,39 @@ export class ProxyError extends Error {
   }
 }
 
+function kindForStatus(status: number): ProxyErrorKind {
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'not_found';
+  if (status === 409) return 'conflict';
+  if (status === 422) return 'bad_request';
+  if (!navigator.onLine) return 'network';
+  return 'server';
+}
+
 export async function ghlProxy<T = unknown>(req: GhlRequest): Promise<T> {
   const { data, error } = await supabase.functions.invoke('ghl-proxy', {
     body: req,
   });
 
   if (error) {
-    const status = (error as any).status || 500;
-    let kind: ProxyErrorKind = 'server';
-    if (status === 401) kind = 'unauthorized';
-    else if (status === 403) kind = 'forbidden';
-    else if (status === 404) kind = 'not_found';
-    else if (status === 409) kind = 'conflict';
-    else if (status === 422) kind = 'bad_request';
-    else if (!navigator.onLine) kind = 'network';
-    
-    throw new ProxyError(status, kind, error.message || 'An error occurred connecting to GHL.');
+    let status = 500;
+    let message = error.message || 'An error occurred connecting to GHL.';
+
+    // FunctionsHttpError carries the proxy's Response in error.context;
+    // the body is { error, statusCode } as written by the ghl-proxy function.
+    if (error instanceof FunctionsHttpError) {
+      status = error.context?.status ?? 500;
+      try {
+        const payload = await error.context.json();
+        if (typeof payload?.statusCode === 'number') status = payload.statusCode;
+        if (typeof payload?.error === 'string' && payload.error) message = payload.error;
+      } catch {
+        // Non-JSON or already-consumed body — keep the Response status.
+      }
+    }
+
+    throw new ProxyError(status, kindForStatus(status), message);
   }
 
   return data as T;

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ghlProxy } from "@/lib/ghlProxy";
 import { qk } from "@/lib/queryKeys";
 import { mapContact } from "@/lib/ghl/contacts";
@@ -17,15 +17,19 @@ export interface Lead extends Contact {
   opportunity?: Opportunity;
 }
 
+const LEADS_PAGE_LIMIT = 20;
+
 export function useLeads(filters: LeadFilters = {}) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: qk.leads.list(filters),
-    queryFn: async () => {
-      // 1. Search contacts with lead tags
+    queryFn: async ({ pageParam }) => {
+      // 1. Search contacts with lead tags (paged; locationId injected server-side)
       const contactsResponse = await ghlProxy<{ contacts: any[] }>({
         method: 'POST',
         path: '/contacts/search',
         body: {
+          page: pageParam,
+          pageLimit: LEADS_PAGE_LIMIT,
           filters: [
             { field: 'tags', operator: 'contains', value: 'lead' }
           ],
@@ -33,7 +37,7 @@ export function useLeads(filters: LeadFilters = {}) {
         }
       });
 
-      const contacts = contactsResponse.contacts.map(mapContact);
+      const contacts = (contactsResponse.contacts || []).map(mapContact);
 
       // 2. Fetch opportunities for these contacts in the Lead Nurture pipeline
       // Pipeline ID from API.md §7: dcKjydejKreefHfsXQx6
@@ -45,14 +49,18 @@ export function useLeads(filters: LeadFilters = {}) {
         }
       });
 
-      const opportunities = oppsResponse.opportunities.map(mapOpportunity);
+      const opportunities = (oppsResponse.opportunities || []).map(mapOpportunity);
 
       // 3. Merge
       return contacts.map(contact => ({
         ...contact,
         opportunity: opportunities.find(o => o.contactId === contact.id)
       })) as Lead[];
-    }
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, _all, lastPageParam) =>
+      lastPage.length === LEADS_PAGE_LIMIT ? lastPageParam + 1 : undefined,
+    select: (data) => data.pages.flat(),
   });
 }
 
@@ -118,7 +126,7 @@ export function useCreateLead() {
       return contactRes.contact;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.leads.list({}) });
+      queryClient.invalidateQueries({ queryKey: qk.leads.lists });
       toast.success("Lead created successfully");
     }
   });
@@ -136,7 +144,7 @@ export function useUpdateLead() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: qk.leads.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: qk.leads.list({}) });
+      queryClient.invalidateQueries({ queryKey: qk.leads.lists });
       toast.success("Lead updated");
     }
   });
@@ -156,7 +164,7 @@ export function useUpdateOpportunityStage() {
       // Optimistic update logic would go here
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.leads.list({}) });
+      queryClient.invalidateQueries({ queryKey: qk.leads.lists });
       queryClient.invalidateQueries({ queryKey: qk.dashboard.summary });
     }
   });
@@ -170,8 +178,8 @@ export function useConvertToClient() {
       // This is a placeholder for the actual logic
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.leads.list({}) });
-      queryClient.invalidateQueries({ queryKey: qk.clients.list({}) });
+      queryClient.invalidateQueries({ queryKey: qk.leads.lists });
+      queryClient.invalidateQueries({ queryKey: qk.clients.lists });
       toast.success("Converted to client");
     }
   });

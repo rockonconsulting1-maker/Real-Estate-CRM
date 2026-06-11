@@ -12,6 +12,7 @@ import { ClientCard } from "@/components/clients/ClientCard";
 import { useClients } from "@/hooks/useClients";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
 
 type ViewMode = 'kanban' | 'table';
 type PipelineId = 'lsNchTsvghJQKPBYCS9Z' | 'F5uB4bZnB0M8YgJ86sLg';
@@ -22,7 +23,13 @@ export default function Clients() {
   const [viewMode, setViewMode] = useState<ViewMode>(isIsMobile ? 'kanban' : 'kanban');
   const [pipelineId, setPipelineId] = useState<PipelineId>('lsNchTsvghJQKPBYCS9Z');
   
-  const { data: clients, isLoading } = useClients({ pipelineId });
+  const {
+    data: clients,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useClients({ pipelineId });
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -77,19 +84,26 @@ export default function Clients() {
           {viewMode === 'kanban' ? (
             <ClientKanban pipelineId={pipelineId} />
           ) : (
-            <RecordList
-              items={clients || []}
-              isLoading={isLoading}
-              renderItem={(client) => (
-                <ClientCard 
-                  key={client.id}
-                  client={client} 
-                  onClick={() => navigate(`/clients/${client.id}`)}
-                />
-              )}
-              emptyTitle="No clients found"
-              emptyDescription="Try adjusting your filters or add a new client."
-            />
+            <>
+              <RecordList
+                items={clients || []}
+                isLoading={isLoading}
+                renderItem={(client) => (
+                  <ClientCard
+                    key={client.id}
+                    client={client}
+                    onClick={() => navigate(`/clients/${client.id}`)}
+                  />
+                )}
+                emptyTitle="No clients found"
+                emptyDescription="Try adjusting your filters or add a new client."
+              />
+              <LoadMoreButton
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              />
+            </>
           )}
         </div>
       </div>

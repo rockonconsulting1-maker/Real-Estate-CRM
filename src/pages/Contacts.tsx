@@ -8,6 +8,7 @@ import { MasterDetailLayout } from "@/components/shared/MasterDetailLayout";
 import { ContextFAB } from "@/components/layout/ContextFAB";
 import { AddContactModal } from "@/components/shared/forms/AddContactModal";
 import { UserPlus } from "lucide-react";
+import { LoadMoreButton } from "@/components/shared/LoadMoreButton";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const ROLE_CHIPS = [
@@ -28,7 +29,13 @@ export default function Contacts() {
   // For now, if no role selected, we fetch all.
   const roleFilter = selectedRoles.length > 0 ? selectedRoles[0] : undefined;
   
-  const { data: contacts = [], isLoading } = useContacts({ role: roleFilter });
+  const {
+    data: contacts = [],
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useContacts({ role: roleFilter });
 
   const selectedContact = contacts.find(c => c.id === selectedContactId) || null;
 
@@ -48,11 +55,16 @@ export default function Contacts() {
         <MasterDetailLayout
           master={
             <div className="h-full overflow-y-auto p-4">
-              <ContactDirectoryList 
-                contacts={contacts} 
-                isLoading={isLoading} 
+              <ContactDirectoryList
+                contacts={contacts}
+                isLoading={isLoading}
                 selectedId={selectedContactId}
                 onSelect={setSelectedContactId}
+              />
+              <LoadMoreButton
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
               />
             </div>
           }

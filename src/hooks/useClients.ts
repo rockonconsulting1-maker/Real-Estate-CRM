@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ghlProxy } from "@/lib/ghlProxy";
 import { qk } from "@/lib/queryKeys";
 import { mapContact } from "@/lib/ghl/contacts";
@@ -15,39 +15,49 @@ export interface Client extends Contact {
   opportunity?: Opportunity;
 }
 
+const CLIENTS_PAGE_LIMIT = 20;
+
+/**
+ * The Contacts Search API filter operators (eq, not_eq, contains, not_contains,
+ * exists, not_exists, range) do not include `in`, so a batch id lookup isn't
+ * expressible as a single search. Fall back to parallel GET /contacts/{id},
+ * tolerating individual failures.
+ */
+async function fetchContactsByIds(contactIds: string[]): Promise<Contact[]> {
+  const results = await Promise.allSettled(
+    contactIds.map((id) =>
+      ghlProxy<{ contact: any }>({ method: 'GET', path: `/contacts/${id}` }),
+    ),
+  );
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<{ contact: any }> => r.status === 'fulfilled')
+    .map((r) => mapContact(r.value.contact));
+}
+
 export function useClients(filters: ClientFilters = {}) {
   const pipelineId = filters.pipelineId || 'lsNchTsvghJQKPBYCS9Z'; // Default to Buyer
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: qk.clients.list(filters),
-    queryFn: async () => {
-      // 1. Fetch opportunities for the selected pipeline
+    queryFn: async ({ pageParam }) => {
+      // 1. Fetch a page of opportunities for the selected pipeline
       const oppsResponse = await ghlProxy<{ opportunities: any[] }>({
         method: 'POST',
         path: '/opportunities/search',
         body: {
-          pipelineId
-        }
+          pipelineId,
+          page: pageParam,
+          limit: CLIENTS_PAGE_LIMIT,
+        },
       });
 
-      const opportunities = oppsResponse.opportunities.map(mapOpportunity);
-      if (opportunities.length === 0) return [];
+      const opportunities = (oppsResponse.opportunities || []).map(mapOpportunity);
+      if (opportunities.length === 0) return [] as Client[];
 
       // 2. Fetch contacts for these opportunities
       const contactIds = Array.from(new Set(opportunities.map(o => o.contactId)));
-      
-      // GHL search supports multiple IDs via filters
-      const contactsResponse = await ghlProxy<{ contacts: any[] }>({
-        method: 'POST',
-        path: '/contacts/search',
-        body: {
-          filters: [
-            { field: 'id', operator: 'in', value: contactIds }
-          ]
-        }
-      });
-
-      const contacts = contactsResponse.contacts.map(mapContact);
+      const contacts = await fetchContactsByIds(contactIds);
 
       // 3. Merge
       return opportunities.map(opp => {
@@ -57,7 +67,11 @@ export function useClients(filters: ClientFilters = {}) {
           opportunity: opp
         } as Client;
       });
-    }
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, _all, lastPageParam) =>
+      lastPage.length === CLIENTS_PAGE_LIMIT ? lastPageParam + 1 : undefined,
+    select: (data) => data.pages.flat(),
   });
 }
 
@@ -70,7 +84,7 @@ export function useClient(id: string) {
         method: 'GET',
         path: `/contacts/${id}`
       });
-      
+
       const contact = mapContact(contactRaw.contact);
 
       // Fetch opportunities for this contact in either Buyer or Seller pipelines
