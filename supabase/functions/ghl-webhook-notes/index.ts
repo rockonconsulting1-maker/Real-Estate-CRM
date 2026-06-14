@@ -1,12 +1,8 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
+import { corsHeaders } from '../_shared/cors.ts';
+import { jsonError } from '../_shared/errors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -32,7 +28,10 @@ serve(async (req) => {
 
     if (!noteId || !locationId) {
        console.error('Missing noteId or locationId', { noteId, locationId });
-       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
+       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+         status: 400,
+         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+       });
     }
 
     const isDelete = ['NoteDeleted', 'note:deleted', 'delete'].includes(type);
@@ -68,9 +67,6 @@ serve(async (req) => {
     });
   } catch (error: any) {
     console.error('Webhook error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonError(error);
   }
 });

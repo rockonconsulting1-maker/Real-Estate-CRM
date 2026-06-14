@@ -1,12 +1,8 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
+import { corsHeaders } from '../_shared/cors.ts';
+import { jsonError } from '../_shared/errors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -34,13 +30,16 @@ serve(async (req) => {
 
     if (!taskId || !locationId) {
        console.error('Missing taskId or locationId', { taskId, locationId });
-       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
+       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+         status: 400,
+         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+       });
     }
 
     const isDelete = ['TaskDelete', 'task:deleted', 'delete'].includes(type);
 
     if (isDelete) {
-      console.log(\`Deleting task: \${taskId}\`);
+      console.log(`Deleting task: ${taskId}`);
       const { error } = await supabase
         .from('task_index')
         .delete()
@@ -49,7 +48,7 @@ serve(async (req) => {
       if (error) throw error;
     } else {
       // Created, Updated, or Completed
-      console.log(\`Upserting task: \${taskId}\`);
+      console.log(`Upserting task: ${taskId}`);
       const { error } = await supabase
         .from('task_index')
         .upsert({
@@ -73,9 +72,6 @@ serve(async (req) => {
     });
   } catch (error: any) {
     console.error('Task Webhook error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonError(error);
   }
 });
