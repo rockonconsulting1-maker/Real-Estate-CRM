@@ -217,9 +217,6 @@ serve(async (req: Request) => {
 
   } catch (err: any) {
     console.error('[accept-invite] Unhandled error:', err?.message ?? err);
-    return new Response(
-      JSON.stringify({ error: err?.message ?? 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonError(err, corsHeaders);
   }
 });
