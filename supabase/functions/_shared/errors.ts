@@ -1,4 +1,4 @@
-import { corsHeaders } from './cors.ts';
+import { corsHeaders as defaultCorsHeaders } from './cors.ts';
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -31,11 +31,16 @@ export class ValidationError extends Error {
   }
 }
 
-export function jsonError(error: any) {
+export function jsonError(error: any, customCorsHeaders?: Record<string, string>) {
   console.error('Edge Function Error:', error);
 
   let status = 500;
   let message = 'Internal Server Error';
+
+  const headers = {
+    ...(customCorsHeaders || defaultCorsHeaders),
+    'Content-Type': 'application/json',
+  };
 
   // Support for @gohighlevel/api-client GHLError structure
   if (error && (error.name === 'GHLError' || error.constructor?.name === 'GHLError')) {
@@ -44,7 +49,7 @@ export function jsonError(error: any) {
 
     return new Response(JSON.stringify({ error: message, statusCode: status }), {
       status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers,
     });
   }
 
@@ -66,6 +71,6 @@ export function jsonError(error: any) {
 
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers,
   });
 }
