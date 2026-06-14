@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
 import HighLevel, { GHLError } from '@gohighlevel/api-client';
 import { verifyJwt, requireAnyUser } from '../_shared/auth.ts';
@@ -31,7 +30,7 @@ function enforceLocationIdInPath(path: string, method: string, locationId: strin
   return url.pathname + url.search;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
