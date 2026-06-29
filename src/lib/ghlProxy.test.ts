@@ -57,7 +57,7 @@ describe("ghlProxy", () => {
   ])("maps statusCode %i from the response body to kind %s", async (status, kind) => {
     invoke.mockResolvedValue({
       data: null,
-      error: httpError(status, { error: `upstream says ${status}`, statusCode: status }),
+      error: httpError(status, { message: `upstream says ${status}`, statusCode: status }),
     });
 
     const err = await expectProxyError(ghlProxy({ method: "GET", path: "/contacts/x" }));
@@ -81,7 +81,7 @@ describe("ghlProxy", () => {
     // ghl-proxy returns the upstream GHL status in the body's statusCode
     invoke.mockResolvedValue({
       data: null,
-      error: httpError(500, { error: "conflict upstream", statusCode: 409 }),
+      error: httpError(500, { message: "conflict upstream", statusCode: 409 }),
     });
 
     const err = await expectProxyError(ghlProxy({ method: "POST", path: "/contacts/" }));

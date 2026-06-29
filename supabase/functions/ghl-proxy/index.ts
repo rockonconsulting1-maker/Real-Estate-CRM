@@ -1,5 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import HighLevel, { GHLError } from 'https://esm.sh/@gohighlevel/api-client@3.0.0?target=es2022';
+import { createClient } from '@supabase/supabase-js';
+import HighLevel, { GHLError } from '@gohighlevel/api-client';
 import { verifyJwt, requireAnyUser } from '../_shared/auth.ts';
 import { decryptToken } from '../_shared/crypto.ts';
 import { logAudit } from '../_shared/audit.ts';
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
 
       const clientConfig = {
         locationAccessToken: access_token,
-        apiVersion: '2021-07-28',
+        apiVersion: '2021-07-28' as any,
       };
 
       let client = new HighLevel(clientConfig);
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     if (error instanceof GHLError) {
       return new Response(JSON.stringify({
-        error: error.message,
+        message: error.message,
         statusCode: error.status,
       }), {
         status: error.status || 500,

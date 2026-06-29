@@ -38,13 +38,13 @@ export async function ghlProxy<T = unknown>(req: GhlRequest): Promise<T> {
     let message = error.message || 'An error occurred connecting to GHL.';
 
     // FunctionsHttpError carries the proxy's Response in error.context;
-    // the body is { error, statusCode } as written by the ghl-proxy function.
+    // the body is { message, statusCode } as written by the ghl-proxy function.
     if (error instanceof FunctionsHttpError) {
       status = error.context?.status ?? 500;
       try {
         const payload = await error.context.json();
         if (typeof payload?.statusCode === 'number') status = payload.statusCode;
-        if (typeof payload?.error === 'string' && payload.error) message = payload.error;
+        if (typeof payload?.message === 'string' && payload.message) message = payload.message;
       } catch {
         // Non-JSON or already-consumed body — keep the Response status.
       }
