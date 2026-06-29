@@ -15,34 +15,41 @@ const LOCATION_SCOPED_GET_PREFIXES = ['/contacts/', '/calendars/events', '/users
  * upstream endpoint needs it (or wherever the client tried to supply one).
  */
 function enforceLocationIdInPath(path: string, method: string, locationId: string): string {
-  const url = new URL(path, 'https://ghl.invalid');
-  const hadClientLocationId = url.searchParams.has('locationId');
-  url.searchParams.delete('locationId');
+  try {
+    const url = new URL(path, 'https://ghl.invalid');
+    const hadClientLocationId = url.searchParams.has('locationId');
+    url.searchParams.delete('locationId');
 
-  const requiresParam =
-    method === 'GET' &&
-    LOCATION_SCOPED_GET_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
+    const requiresParam =
+      method === 'GET' &&
+      LOCATION_SCOPED_GET_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 
-  if (requiresParam || hadClientLocationId) {
-    url.searchParams.set('locationId', locationId);
+    if (requiresParam || hadClientLocationId) {
+      url.searchParams.set('locationId', locationId);
+    }
+
+    return url.pathname + url.search;
+  } catch (e) {
+    console.error('[ghl-proxy] Failed to parse path:', path, e);
+    return path;
   }
-
-  return url.pathname + url.search;
 }
 
 Deno.serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+  // 1. Immediate CORS Handling - MUST BE LAZY AND FIRST
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
-    // 1. Auth & Profile
+    // 2. Auth & Profile
     const user = await verifyJwt(req);
     const appUser = await requireAnyUser(req);
 
-    // 2. Resolve Location Link — primary and not revoked only
+    // 3. Resolve Location Link — primary and not revoked only
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
@@ -63,18 +70,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. Request Extraction
-    const { method: rawMethod, path: rawPath, body } = await req.json();
-    const method = String(rawMethod ?? '').toUpperCase();
-
-    // 4. Server-side locationId injection
-    const path = enforceLocationIdInPath(String(rawPath ?? ''), method, link.ghl_location_id);
-    if (body && typeof body === 'object' && !Array.isArray(body) && ['POST', 'PUT', 'PATCH'].includes(method)) {
-      delete (body as Record<string, unknown>).locationId;
-      (body as Record<string, unknown>).locationId = link.ghl_location_id;
+    // 4. Request Extraction
+    let bodyPayload;
+    try {
+      bodyPayload = await req.json();
+    } catch (e) {
+      // Body might be empty
     }
 
-    // 5. Permission Enforcement
+    const { method: rawMethod, path: rawPath, body } = bodyPayload || {};
+    const method = String(rawMethod ?? 'GET').toUpperCase();
+
+    // 5. Server-side locationId injection
+    const path = enforceLocationIdInPath(String(rawPath ?? ''), method, link.ghl_location_id);
+
+    // SDK handles its own locationId, but we keep this for consistency if using raw request
+    if (body && typeof body === 'object' && !Array.isArray(body) && ['POST', 'PUT', 'PATCH'].includes(method)) {
+      const forwardedBody = body as Record<string, unknown>;
+      delete forwardedBody.locationId;
+      forwardedBody.locationId = link.ghl_location_id;
+    }
+
+    // 6. Permission Enforcement
     if (appUser.role === 'assistant') {
       const { data: linkRow } = await adminClient
         .from('user_location_links')
@@ -120,10 +137,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6. Proxy to GHL with 401 → token-refresh → single retry.
-    //    The audit entry is written in `finally` so every outcome is recorded
-    //    (success, GHL 4xx/5xx, token-refresh failure) with the real upstream
-    //    status code.
+    // 7. Proxy to GHL with 401 → token-refresh → single retry.
     let upstreamStatus = 0;
 
     try {
@@ -193,12 +207,12 @@ Deno.serve(async (req) => {
       });
     }
   } catch (error: any) {
-    if (error instanceof GHLError) {
+    if (error instanceof GHLError || (error && (error.name === 'GHLError' || error.constructor?.name === 'GHLError'))) {
       return new Response(JSON.stringify({
         message: error.message,
-        statusCode: error.status,
+        statusCode: error.status || error.statusCode,
       }), {
-        status: error.status || 500,
+        status: error.status || error.statusCode || 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

@@ -1,7 +1,7 @@
 {
   "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.42.0",
-    "@gohighlevel/api-client": "https://esm.sh/@gohighlevel/api-client@3.0.0?target=es2022",
-    "std/": "https://deno.land/std@0.168.0/"
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.42.0",
+    "@gohighlevel/api-client": "npm:@gohighlevel/api-client@3.0.0",
+    "std/": "https://deno.land/std@0.177.0/"
   }
 }
