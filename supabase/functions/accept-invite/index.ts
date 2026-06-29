@@ -1,5 +1,6 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { serve } from "std/http/server.ts";
+import { createClient } from "@supabase/supabase-js";
+import HighLevel, { GHLError } from "@gohighlevel/api-client";
 import { verifyJwt } from "../_shared/auth.ts";
 import { jsonError, ValidationError, PermissionError } from "../_shared/errors.ts";
 import { getCorsHeaders } from '../_shared/cors.ts';
@@ -102,7 +103,7 @@ serve(async (req: Request) => {
       .upsert({
         app_user_id: callerId,
         ghl_location_id: agentLocationId,
-        ghl_user_id: null // Migration ensures this column is nullable
+        ghl_user_id: null
       }, { onConflict: 'app_user_id,ghl_location_id' });
 
     if (linkError) throw linkError;
@@ -123,68 +124,62 @@ serve(async (req: Request) => {
         const firstName = fullName.split(' ')[0] || 'Assistant';
         const lastName = fullName.split(' ').slice(1).join(' ') || '';
 
-        const ghlResponse = await fetch(
-          'https://services.leadconnectorhq.com/users/',
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${ghlAccessToken}`,
-              'Version': '2021-07-28',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-              firstName,
-              lastName,
-              email: callerEmail,
-              password: tempPassword,
-              phone: '',
-              type: 'account',
-              role: 'user',
-              locationIds: [agentLocationId],
-              permissions: {
-                contactsEnabled: true,
-                opportunitiesEnabled: true,
-                appointmentsEnabled: true,
-                tagsEnabled: true,
-                dashboardStatsEnabled: true,
-                leadValueEnabled: false,
-                settingsEnabled: false,
-                exportEnabled: false,
-                bulkRequestsEnabled: false,
-                attributionReportEnabled: false,
-                agentReportEnabled: false,
-                membershipEnabled: false,
-                facebookAdsReportEnabled: false,
-                onlineListingsEnabled: false,
-                phoneCallEnabled: true,
-                campaignsEnabled: false,
-                campaignsReadOnly: true,
-                blogsEnabled: false,
-                invoiceEnabled: false,
-                reviewsEnabled: false,
-                contentAiEnabled: false,
-                refundsEnabled: false,
-                recordPaymentEnabled: false,
-                cancelSubscriptionEnabled: false,
-                paymentsEnabled: false,
-                communitiesEnabled: false,
-                websitesEnabled: false,
-                workflowsEnabled: false,
-                workflowsReadOnly: true,
-                socialPlanner: false,
-              },
-            }),
-          }
-        );
+        const client = new HighLevel({
+          locationAccessToken: ghlAccessToken,
+          apiVersion: '2021-07-28' as any,
+        });
 
-        if (ghlResponse.ok) {
-          const ghlData = await ghlResponse.json();
+        try {
+          const { data: ghlData } = await client.users.create({
+            firstName,
+            lastName,
+            email: callerEmail,
+            password: tempPassword,
+            phone: '',
+            type: 'account',
+            role: 'user',
+            locationIds: [agentLocationId],
+            permissions: {
+              contactsEnabled: true,
+              opportunitiesEnabled: true,
+              appointmentsEnabled: true,
+              tagsEnabled: true,
+              dashboardStatsEnabled: true,
+              leadValueEnabled: false,
+              settingsEnabled: false,
+              exportEnabled: false,
+              bulkRequestsEnabled: false,
+              attributionReportEnabled: false,
+              agentReportEnabled: false,
+              membershipEnabled: false,
+              facebookAdsReportEnabled: false,
+              onlineListingsEnabled: false,
+              phoneCallEnabled: true,
+              campaignsEnabled: false,
+              campaignsReadOnly: true,
+              blogsEnabled: false,
+              invoiceEnabled: false,
+              reviewsEnabled: false,
+              contentAiEnabled: false,
+              refundsEnabled: false,
+              recordPaymentEnabled: false,
+              cancelSubscriptionEnabled: false,
+              paymentsEnabled: false,
+              communitiesEnabled: false,
+              websitesEnabled: false,
+              workflowsEnabled: false,
+              workflowsReadOnly: true,
+              socialPlanner: false,
+            },
+          });
           ghlUserId = ghlData?.user?.id ?? ghlData?.id ?? null;
           console.log('[accept-invite] GHL user created:', ghlUserId);
-        } else {
-          const errBody = await ghlResponse.text();
-          console.error('[accept-invite] GHL user creation failed (non-fatal):', ghlResponse.status, errBody);
+        } catch (e: any) {
+          if (e instanceof GHLError) {
+            console.error('[accept-invite] GHL user creation failed (GHLError):', e.status, e.message);
+          } else {
+            console.error('[accept-invite] GHL user creation failed (Unexpected):', e.message);
+          }
         }
       }
 

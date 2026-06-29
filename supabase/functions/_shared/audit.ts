@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
+import { createClient } from '@supabase/supabase-js';
 
 export interface AuditLogEntry {
   app_user_id: string;
