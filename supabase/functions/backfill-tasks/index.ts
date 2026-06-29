@@ -3,11 +3,13 @@ import HighLevel from 'https://esm.sh/@gohighlevel/api-client@3.0.0?target=es202
 import { verifyJwt, requireAgent, getPrimaryLocation } from '../_shared/auth.ts';
 import { decryptToken } from '../_shared/crypto.ts';
 import { jsonError } from '../_shared/errors.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -78,6 +80,6 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Backfill error:', error);
-    return jsonError(error);
+    return jsonError(error, corsHeaders);
   }
 });

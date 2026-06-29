@@ -1,10 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-import HighLevel, { GHLError } from '@gohighlevel/api-client';
+import HighLevel, { GHLError } from 'https://esm.sh/@gohighlevel/api-client@3.0.0?target=es2022';
 import { verifyJwt, requireAnyUser } from '../_shared/auth.ts';
 import { decryptToken } from '../_shared/crypto.ts';
 import { logAudit } from '../_shared/audit.ts';
 import { jsonError } from '../_shared/errors.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 // GET endpoints on the GHL API that require a locationId query param.
 const LOCATION_SCOPED_GET_PREFIXES = ['/contacts/', '/calendars/events', '/users/'];
@@ -31,8 +31,10 @@ function enforceLocationIdInPath(path: string, method: string, locationId: strin
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -200,7 +202,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    return jsonError(error);
+    return jsonError(error, corsHeaders);
   }
 });
 
